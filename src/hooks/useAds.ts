@@ -1,23 +1,28 @@
-import { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useState, useEffect } from "react";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
-export const useAds = () => {
-  const [ads, setAds] = useState({
-    directLink: '',       // Link buat tombol Download
-    socialBarScript: ''   // Script buat iklan melayang
+export interface AdsConfig {
+  directLink: string;
+  socialBarScript: string;
+  popunderScript: string; // <--- TAMBAHAN BARU
+}
+
+export function useAds() {
+  const [ads, setAds] = useState<AdsConfig>({
+    directLink: "",
+    socialBarScript: "",
+    popunderScript: "", // <--- DEFAULT KOSONG
   });
 
   useEffect(() => {
-    // Kita pasang "penyadap" (listener) realtime ke dokumen ads_config
     const unsub = onSnapshot(doc(db, "settings", "ads_config"), (doc) => {
       if (doc.exists()) {
-        setAds(doc.data() as any);
+        setAds(doc.data() as AdsConfig);
       }
     });
-
     return () => unsub();
   }, []);
 
   return ads;
-};
+}
