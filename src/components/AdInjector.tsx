@@ -1,37 +1,47 @@
 import React, { useEffect, useRef } from 'react';
 import { useAds } from '@/hooks/useAds';
-import { useAuth } from '@/context/AuthContext'; // 1. Import Data User
+import { useAuth } from '@/context/AuthContext';
 
 const AdInjector: React.FC = () => {
-  const { socialBarScript } = useAds();
-  const { user } = useAuth(); // 2. Ambil status user
-  const injectedRef = useRef(false);
+  const { socialBarScript, popunderScript } = useAds(); // Ambil 2 script
+  const { user } = useAuth();
+  
+  // Kita butuh 2 ref biar ga double inject
+  const socialInjectedRef = useRef(false);
+  const popunderInjectedRef = useRef(false);
 
   useEffect(() => {
-    // --- LOGIKA PEMBLOKIRAN IKLAN ---
-    
-    // Cek 1: Apakah user VIP?
+    // 1. CEK VIP (Kalau Sultan, blokir semua iklan)
     if (user?.isVip) {
-      console.log("👑 User VIP Terdeteksi: Iklan Social Bar DIBLOKIR demi kenyamanan Sultan.");
-      return; // Langsung kabur, jangan pasang apa-apa
+      console.log("👑 VIP: Semua script iklan diblokir.");
+      return;
     }
 
-    // Cek 2: Apakah script kosong atau udah pernah dipasang?
-    if (!socialBarScript || injectedRef.current) return;
-
-    // --- PROSES SUNTIK (Hanya untuk User Gratisan) ---
-    try {
-      const range = document.createRange();
-      const fragment = range.createContextualFragment(socialBarScript);
-      document.body.appendChild(fragment);
-      
-      injectedRef.current = true;
-      console.log("✅ User Gratisan: Iklan Adsterra Disuntik!");
-    } catch (error) {
-      console.error("❌ Gagal pasang iklan:", error);
+    // --- LOGIC 1: SOCIAL BAR ---
+    if (socialBarScript && !socialInjectedRef.current) {
+      try {
+        const range = document.createRange();
+        // Social Bar biasanya aman ditaruh di Body
+        const fragment = range.createContextualFragment(socialBarScript);
+        document.body.appendChild(fragment);
+        socialInjectedRef.current = true;
+        console.log("✅ Social Bar Injected");
+      } catch (e) { console.error("Social Bar Error", e); }
     }
 
-  }, [socialBarScript, user]); // Jalankan cek ulang kalau user login/logout
+    // --- LOGIC 2: POPUNDER (NEW) ---
+    if (popunderScript && !popunderInjectedRef.current) {
+      try {
+        const range = document.createRange();
+        // Popunder juga oke di body atau head, kita taruh body aja biar gampang
+        const fragment = range.createContextualFragment(popunderScript);
+        document.body.appendChild(fragment);
+        popunderInjectedRef.current = true;
+        console.log("✅ Popunder Injected");
+      } catch (e) { console.error("Popunder Error", e); }
+    }
+
+  }, [socialBarScript, popunderScript, user]);
 
   return null;
 };
