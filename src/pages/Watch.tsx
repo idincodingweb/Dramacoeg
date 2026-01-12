@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronLeft, ChevronRight, AlertCircle, PlayCircle, Download, Lock } from "lucide-react"; 
+import { ArrowLeft, ChevronLeft, ChevronRight, AlertCircle, PlayCircle, Download } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useAds } from "@/hooks/useAds"; 
 
-// Helper untuk sorting kualitas video
 function getAvailableQualities(episode: Episode | undefined): number[] {
   if (!episode?.cdnList?.length) return [360, 540, 720, 1080];
   const cdn = episode.cdnList.find((c) => c.isDefault === 1) || episode.cdnList[0];
@@ -23,13 +22,12 @@ const Watch = () => {
   const { bookId, episodeNum } = useParams<{ bookId: string; episodeNum: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { directLink } = useAds(); // Hook untuk mengambil link iklan terbaru
+  const { directLink } = useAds(); 
   
   const currentEpisode = parseInt(episodeNum || "1", 10);
   const [episodePage, setEpisodePage] = useState(1);
   const [videoError, setVideoError] = useState(false);
   
-  // Ambil kualitas tersimpan atau default ke 720
   const [videoQuality, setVideoQuality] = useState(() => {
     const saved = localStorage.getItem("dramaid_video_quality");
     return saved ? parseInt(saved, 10) : 720;
@@ -37,14 +35,12 @@ const Watch = () => {
   
   const episodesPerPage = 30;
 
-  // --- FETCH DATA DRAMA ---
   const { data: drama } = useQuery({
     queryKey: ["drama", bookId],
     queryFn: () => fetchDramaDetail(bookId!),
     enabled: !!bookId,
   });
 
-  // --- FETCH SEMUA EPISODE ---
   const { data: episodes, isLoading: episodesLoading } = useQuery({
     queryKey: ["episodes", bookId],
     queryFn: () => fetchAllEpisodes(bookId!),
@@ -58,7 +54,6 @@ const Watch = () => {
   const videoUrl = getVideoUrl(currentEpisodeData, videoQuality);
   const availableQualities = getAvailableQualities(currentEpisodeData);
 
-  // --- SAVE HISTORY ---
   useEffect(() => {
     if (drama && bookId && currentEpisode) {
       const saved = localStorage.getItem("dramaid_history");
@@ -70,14 +65,12 @@ const Watch = () => {
         lastEpisode: currentEpisode,
         updatedAt: Date.now(),
       };
-      // Hapus duplikat lama, taruh yang baru di paling atas
       history = history.filter((h: any) => h.id !== bookId);
       history.unshift(newItem);
       localStorage.setItem("dramaid_history", JSON.stringify(history.slice(0, 20)));
     }
   }, [drama, currentEpisode, bookId]);
 
-  // --- SYNC PAGE NUMBER ---
   useEffect(() => {
     const pageForEpisode = Math.ceil(currentEpisode / episodesPerPage);
     setEpisodePage(pageForEpisode);
@@ -89,17 +82,11 @@ const Watch = () => {
     setVideoError(false);
   };
 
-  // --- LOGIKA NAVIGASI + IKLAN JEBAKAN ---
   const goToEpisode = (ep: number) => {
     if (ep >= 1 && ep <= totalEpisodes) {
-      
-      // LOGIC: Kalau user mau MAJU episode (Next) DAN user GRATISAN
-      // Kita buka tab iklan dulu sebelum pindah
-      if (ep > currentEpisode && directLink && !user?.isVip) {
+      if (ep > currentEpisode && directLink) {
         window.open(directLink, '_blank');
       }
-
-      // Pindah halaman
       navigate(`/watch/${bookId}/${ep}`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -107,37 +94,20 @@ const Watch = () => {
 
   const handleVideoEnded = () => {
     if (currentEpisode < totalEpisodes) {
-      toast.success(`Episode ${currentEpisode} Selesai. Lanjut Episode ${currentEpisode + 1}...`, {
-        duration: 3000,
-        position: "top-center"
-      });
-      setTimeout(() => {
-        goToEpisode(currentEpisode + 1);
-      }, 2000);
-    } else {
-      toast("Kamu sudah menonton semua episode! 🎉", {
-        position: "top-center"
-      });
+      toast.success(`Episode ${currentEpisode} Selesai. Lanjut...`);
+      setTimeout(() => goToEpisode(currentEpisode + 1), 2000);
     }
   };
 
-  // --- LOGIKA TOMBOL DOWNLOAD ---
+  // --- LOGIC BARU: DIRECTLINK -> INFO PAGE ---
   const handleDownloadClick = () => {
-    if (!user?.isVip) {
-      // User Gratisan: Arahkan ke Info VIP
-      toast.info("Fitur Download Khusus VIP 🔒", {
-        description: "Lihat panduan download dan keuntungan VIP di sini.",
-        duration: 4000,
-      });
-      navigate("/info");
-      return;
+    // 1. Buka Iklan Dulu (Cuan)
+    if (directLink) {
+      window.open(directLink, '_blank');
     }
 
-    // User VIP: Kasih tau caranya
-    toast.success("Akses Download Terbuka! 🔓", {
-      description: "Klik titik tiga (⋮) di pojok kanan bawah video player, lalu pilih menu 'Download'.",
-      duration: 6000,
-    });
+    // 2. Lempar ke Halaman Tutorial/Info
+    navigate("/info");
   };
 
   const getEpisodesForCurrentPage = () => {
@@ -166,10 +136,6 @@ const Watch = () => {
               key={`${videoUrl}-${videoQuality}`}
               src={videoUrl}
               controls
-              // Matikan tombol download bawaan browser buat user gratisan
-              controlsList={user?.isVip ? undefined : "nodownload"}
-              // Matikan klik kanan buat user gratisan
-              onContextMenu={(e) => !user?.isVip && e.preventDefault()} 
               autoPlay
               playsInline
               className="w-full h-full"
@@ -180,34 +146,20 @@ const Watch = () => {
             <div className="w-full h-full flex items-center justify-center bg-slate-900/50">
               <div className="text-center p-6">
                 <AlertCircle className="w-12 h-12 mx-auto mb-3 text-pink-500" />
-                <p className="text-sm opacity-70">Video tidak dapat dimuat atau sedang diproses.</p>
+                <p className="text-sm opacity-70">Video tidak dapat dimuat.</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* --- TOMBOL ACTION (DOWNLOAD & QUALITY) --- */}
+        {/* --- TOMBOL DOWNLOAD (REDIRECT TO INFO) --- */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          
           <Button 
             onClick={handleDownloadClick}
-            className={`w-full sm:w-auto font-bold transition-all ${
-              user?.isVip 
-                ? "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20" 
-                : "bg-gray-800 hover:bg-gray-700 text-gray-300"
-            }`}
+            className="w-full sm:w-auto font-bold transition-all bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20"
           >
-            {user?.isVip ? (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                Download Video
-              </>
-            ) : (
-              <>
-                <Lock className="w-4 h-4 mr-2 text-yellow-400" />
-                Download (VIP)
-              </>
-            )}
+            <Download className="w-4 h-4 mr-2" />
+            Download Video (Gratis)
           </Button>
 
           <VideoQualitySelector 
@@ -217,7 +169,7 @@ const Watch = () => {
           />
         </div>
 
-        {/* --- JUDUL & NAVIGASI EPISODE --- */}
+        {/* --- JUDUL & NAVIGASI --- */}
         <div className="bg-[#16161a] border border-white/5 rounded-[2rem] p-6 mb-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
@@ -230,14 +182,10 @@ const Watch = () => {
             </div>
             
             <div className="flex items-center gap-3 bg-black/30 p-2 rounded-2xl">
-              {/* PREV BUTTON */}
               <Button variant="ghost" size="icon" onClick={() => goToEpisode(currentEpisode - 1)} disabled={currentEpisode <= 1}>
                 <ChevronLeft />
               </Button>
-              
               <span className="text-sm font-black px-2">{currentEpisode} / {totalEpisodes}</span>
-              
-              {/* NEXT BUTTON (Ada Iklannya di goToEpisode) */}
               <Button variant="ghost" size="icon" onClick={() => goToEpisode(currentEpisode + 1)} disabled={currentEpisode >= totalEpisodes}>
                 <ChevronRight />
               </Button>
@@ -245,7 +193,7 @@ const Watch = () => {
           </div>
         </div>
 
-        {/* --- GRID EPISODE LIST --- */}
+        {/* --- DAFTAR EPISODE --- */}
         <div className="bg-[#16161a] border border-white/5 rounded-[2rem] p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-bold text-lg flex items-center gap-2">
@@ -256,7 +204,6 @@ const Watch = () => {
             </span>
           </div>
 
-          {/* Pagination Episode */}
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mb-6 flex-wrap">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
@@ -275,11 +222,7 @@ const Watch = () => {
             </div>
           )}
 
-          <p className="text-center text-[10px] font-bold text-gray-500 mb-4 uppercase tracking-tighter">
-            Menampilkan Episode {(episodePage - 1) * episodesPerPage + 1} - {Math.min(episodePage * episodesPerPage, totalEpisodes)}
-          </p>
-
-          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2">
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2 mt-4">
             {getEpisodesForCurrentPage().map((ep) => (
               <button
                 key={ep}
