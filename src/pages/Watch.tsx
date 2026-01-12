@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useAds } from "@/hooks/useAds"; 
 
+// Helper untuk sorting kualitas video
 function getAvailableQualities(episode: Episode | undefined): number[] {
   if (!episode?.cdnList?.length) return [360, 540, 720, 1080];
   const cdn = episode.cdnList.find((c) => c.isDefault === 1) || episode.cdnList[0];
@@ -22,11 +23,13 @@ const Watch = () => {
   const { bookId, episodeNum } = useParams<{ bookId: string; episodeNum: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { directLink } = useAds(); // Ambil link iklan buat tombol Next
+  const { directLink } = useAds(); // Hook untuk mengambil link iklan terbaru
   
   const currentEpisode = parseInt(episodeNum || "1", 10);
   const [episodePage, setEpisodePage] = useState(1);
   const [videoError, setVideoError] = useState(false);
+  
+  // Ambil kualitas tersimpan atau default ke 720
   const [videoQuality, setVideoQuality] = useState(() => {
     const saved = localStorage.getItem("dramaid_video_quality");
     return saved ? parseInt(saved, 10) : 720;
@@ -34,12 +37,14 @@ const Watch = () => {
   
   const episodesPerPage = 30;
 
+  // --- FETCH DATA DRAMA ---
   const { data: drama } = useQuery({
     queryKey: ["drama", bookId],
     queryFn: () => fetchDramaDetail(bookId!),
     enabled: !!bookId,
   });
 
+  // --- FETCH SEMUA EPISODE ---
   const { data: episodes, isLoading: episodesLoading } = useQuery({
     queryKey: ["episodes", bookId],
     queryFn: () => fetchAllEpisodes(bookId!),
@@ -53,6 +58,7 @@ const Watch = () => {
   const videoUrl = getVideoUrl(currentEpisodeData, videoQuality);
   const availableQualities = getAvailableQualities(currentEpisodeData);
 
+  // --- SAVE HISTORY ---
   useEffect(() => {
     if (drama && bookId && currentEpisode) {
       const saved = localStorage.getItem("dramaid_history");
@@ -64,12 +70,14 @@ const Watch = () => {
         lastEpisode: currentEpisode,
         updatedAt: Date.now(),
       };
+      // Hapus duplikat lama, taruh yang baru di paling atas
       history = history.filter((h: any) => h.id !== bookId);
       history.unshift(newItem);
       localStorage.setItem("dramaid_history", JSON.stringify(history.slice(0, 20)));
     }
   }, [drama, currentEpisode, bookId]);
 
+  // --- SYNC PAGE NUMBER ---
   useEffect(() => {
     const pageForEpisode = Math.ceil(currentEpisode / episodesPerPage);
     setEpisodePage(pageForEpisode);
@@ -81,17 +89,17 @@ const Watch = () => {
     setVideoError(false);
   };
 
-  // --- LOGIKA PINDAH EPISODE (Next Button Trap) ---
+  // --- LOGIKA NAVIGASI + IKLAN JEBAKAN ---
   const goToEpisode = (ep: number) => {
     if (ep >= 1 && ep <= totalEpisodes) {
       
-      // LOGIC: Kalau user mau ke episode selanjutnya (Maju) DAN ada iklan DAN user bukan VIP
-      // Ini tetap kita biarkan ada iklannya sebagai "Bayaran" nonton gratis
+      // LOGIC: Kalau user mau MAJU episode (Next) DAN user GRATISAN
+      // Kita buka tab iklan dulu sebelum pindah
       if (ep > currentEpisode && directLink && !user?.isVip) {
         window.open(directLink, '_blank');
       }
 
-      // Lanjut navigasi
+      // Pindah halaman
       navigate(`/watch/${bookId}/${ep}`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -113,22 +121,21 @@ const Watch = () => {
     }
   };
 
-  // --- FUNGSI DOWNLOAD (UPDATED) ---
+  // --- LOGIKA TOMBOL DOWNLOAD ---
   const handleDownloadClick = () => {
     if (!user?.isVip) {
-      // TIDAK ADA IKLAN DISINI. Murni Edukasi.
+      // User Gratisan: Arahkan ke Info VIP
       toast.info("Fitur Download Khusus VIP 🔒", {
         description: "Lihat panduan download dan keuntungan VIP di sini.",
         duration: 4000,
       });
-      
-      // Redirect ke halaman Info
       navigate("/info");
       return;
     }
 
+    // User VIP: Kasih tau caranya
     toast.success("Akses Download Terbuka! 🔓", {
-      description: "Klik titik tiga (⋮) di pojok kanan bawah video, lalu pilih menu 'Download'.",
+      description: "Klik titik tiga (⋮) di pojok kanan bawah video player, lalu pilih menu 'Download'.",
       duration: 6000,
     });
   };
@@ -159,7 +166,9 @@ const Watch = () => {
               key={`${videoUrl}-${videoQuality}`}
               src={videoUrl}
               controls
+              // Matikan tombol download bawaan browser buat user gratisan
               controlsList={user?.isVip ? undefined : "nodownload"}
+              // Matikan klik kanan buat user gratisan
               onContextMenu={(e) => !user?.isVip && e.preventDefault()} 
               autoPlay
               playsInline
@@ -177,7 +186,7 @@ const Watch = () => {
           )}
         </div>
 
-        {/* --- AREA TOMBOL DOWNLOAD & QUALITY SELECTOR --- */}
+        {/* --- TOMBOL ACTION (DOWNLOAD & QUALITY) --- */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           
           <Button 
@@ -201,22 +210,34 @@ const Watch = () => {
             )}
           </Button>
 
-          <VideoQualitySelector currentQuality={videoQuality} availableQualities={availableQualities} onQualityChange={handleQualityChange} />
+          <VideoQualitySelector 
+            currentQuality={videoQuality} 
+            availableQualities={availableQualities} 
+            onQualityChange={handleQualityChange} 
+          />
         </div>
 
-        {/* --- INFO JUDUL & NAVIGASI --- */}
+        {/* --- JUDUL & NAVIGASI EPISODE --- */}
         <div className="bg-[#16161a] border border-white/5 rounded-[2rem] p-6 mb-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
-              <h1 className="text-xl md:text-2xl font-bold text-pink-500 line-clamp-1">{drama?.bookName || "Loading..."}</h1>
-              <p className="text-gray-400 text-sm mt-1 font-bold uppercase tracking-widest">Episode {currentEpisode}</p>
+              <h1 className="text-xl md:text-2xl font-bold text-pink-500 line-clamp-1">
+                {drama?.bookName || "Loading..."}
+              </h1>
+              <p className="text-gray-400 text-sm mt-1 font-bold uppercase tracking-widest">
+                Episode {currentEpisode}
+              </p>
             </div>
+            
             <div className="flex items-center gap-3 bg-black/30 p-2 rounded-2xl">
+              {/* PREV BUTTON */}
               <Button variant="ghost" size="icon" onClick={() => goToEpisode(currentEpisode - 1)} disabled={currentEpisode <= 1}>
                 <ChevronLeft />
               </Button>
+              
               <span className="text-sm font-black px-2">{currentEpisode} / {totalEpisodes}</span>
-              {/* TOMBOL NEXT: INI YANG ADA IKLANNYA (KALAU GRATISAN) */}
+              
+              {/* NEXT BUTTON (Ada Iklannya di goToEpisode) */}
               <Button variant="ghost" size="icon" onClick={() => goToEpisode(currentEpisode + 1)} disabled={currentEpisode >= totalEpisodes}>
                 <ChevronRight />
               </Button>
@@ -224,15 +245,18 @@ const Watch = () => {
           </div>
         </div>
 
-        {/* --- DAFTAR EPISODE --- */}
+        {/* --- GRID EPISODE LIST --- */}
         <div className="bg-[#16161a] border border-white/5 rounded-[2rem] p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-bold text-lg flex items-center gap-2">
               <PlayCircle className="w-5 h-5 text-pink-500" /> Daftar Episode
             </h2>
-            <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-full">{totalEpisodes} TOTAL</span>
+            <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-full">
+              {totalEpisodes} TOTAL
+            </span>
           </div>
 
+          {/* Pagination Episode */}
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mb-6 flex-wrap">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
