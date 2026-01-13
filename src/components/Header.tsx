@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Heart, User, LogIn, Bookmark, X } from "lucide-react"; 
+// Ikon User dan LogIn sudah dihapus dari import
+import { Search, Heart, Bookmark, X, Download } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
+// useAuth tetap dibiarkan agar state authentikasi tetap jalan di background, meskipun ikonnya ga muncul
 import { useAuth } from "@/context/AuthContext";
 
 export const Header = () => {
-  const { user } = useAuth();
+  // Kita tetap panggil hook ini biar sesi user tetap terjaga
+  useAuth(); 
   const navigate = useNavigate();
   
   // State buat Search Bar & Mobile Menu
@@ -38,12 +41,11 @@ export const Header = () => {
             </Link>
           </div>
 
-          {/* 2. MENU TENGAH (Desktop) - Watchlist Ada Disini */}
+          {/* 2. MENU TENGAH (Desktop) */}
           <nav className="hidden md:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
             <Link to="/" className="text-sm font-medium text-gray-300 hover:text-white hover:text-pink-400 transition-colors">
               Home
             </Link>
-            {/* Watchlist Gw Balikin */}
             <Link to="/watchlist" className="text-sm font-medium text-gray-300 hover:text-white hover:text-pink-400 transition-colors flex items-center gap-1">
               <Bookmark className="w-4 h-4" /> Watchlist
             </Link>
@@ -52,7 +54,7 @@ export const Header = () => {
             </Link>
           </nav>
 
-          {/* 3. BAGIAN KANAN (Search, Donate, Profile) */}
+          {/* 3. BAGIAN KANAN (Search, App, Donate) - User Profile DIHAPUS */}
           <div className="flex items-center gap-2 sm:gap-3 z-20">
             
             {/* SEARCH ICON TOGGLE */}
@@ -72,6 +74,18 @@ export const Header = () => {
               </Button>
             </Link>
 
+            {/* --- TOMBOL UNDUH APLIKASI (LINK ASLI) --- */}
+            {/* Link sudah diupdate ke sfile.mobi */}
+            <a href="https://sfile.mobi/owSh69RYYwa" target="_blank" rel="noopener noreferrer">
+              <Button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold h-8 sm:h-9 px-3 sm:px-4 rounded-full shadow-lg shadow-cyan-500/20 flex items-center gap-2 transition-all hover:scale-105 border-0">
+                <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="text-xs sm:text-sm">
+                  <span className="sm:hidden">APP</span>
+                  <span className="hidden sm:inline">UNDUH APP</span>
+                </span>
+              </Button>
+            </a>
+
             {/* TOMBOL DONATE */}
             <a href="https://saweria.co/dramaid_official" target="_blank" rel="noopener noreferrer">
               <Button className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold h-8 sm:h-9 px-3 sm:px-4 rounded-full shadow-lg shadow-yellow-500/20 flex items-center gap-2 transition-all hover:scale-105">
@@ -80,23 +94,7 @@ export const Header = () => {
               </Button>
             </a>
 
-            {/* PROFILE / LOGIN */}
-            {user ? (
-              <Link to="/dashboard">
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 p-[2px] cursor-pointer hover:shadow-purple-500/50 hover:shadow-md transition-all">
-                  <div className="w-full h-full rounded-full bg-[#0a0a0c] flex items-center justify-center overflow-hidden">
-                     <User className="w-4 h-4 text-gray-300" />
-                  </div>
-                </div>
-              </Link>
-            ) : (
-              <Link to="/login">
-                <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white px-2 sm:px-4">
-                  <LogIn className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Masuk</span>
-                </Button>
-              </Link>
-            )}
+            {/* BAGIAN PROFILE/LOGIN SUDAH DIHAPUS DISINI */}
 
           </div>
         </div>
